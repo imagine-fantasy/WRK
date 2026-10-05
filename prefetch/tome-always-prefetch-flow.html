@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Always Prefetch Flow</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b111c;color:#e6edf6;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:1320px;margin:0 auto;padding:22px 16px 30px}
+  h1{margin:0 0 4px;font-size:22px;font-weight:700}
+  .subt{margin:0 0 12px;color:#93a3b8;font-size:13.5px}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:12px}
+  .seg{display:inline-flex;border:1px solid #2c3b55;border-radius:10px;overflow:hidden}
+  .seg button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border:0;background:#121b2b;color:#8ea0b8;cursor:pointer}
+  .seg button.sel.p{background:#0f3a2c;color:#6ee7b7}
+  .seg button.sel.f{background:#3d1717;color:#fca5a5}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:#93a3b8}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
+
+  .outer{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 0,#15213a 0,#0d1522 70%);border:1px solid #1f2b3e;border-radius:14px}
+  .stage{position:absolute;left:0;top:0;width:1280px;height:630px;transform-origin:0 0}
+  svg#wires{position:absolute;left:0;top:0;width:1280px;height:630px;overflow:visible}
+  .base{fill:none;stroke:#2a3850;stroke-width:2;stroke-dasharray:5 6}
+  .lit{fill:none;stroke-width:3.2;stroke-linecap:round}
+  .elab{fill:#6f819b;font:700 11px -apple-system,Segoe UI,Arial,sans-serif;letter-spacing:.05em;text-transform:uppercase}
+
+  .region{position:absolute;border:1.6px dashed;border-radius:16px}
+  .region .lab{position:absolute;left:16px;bottom:9px;font-weight:800;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+  #rDb{left:20px;top:150px;width:610px;height:360px;border-color:#2f4a6b;background:rgba(79,157,255,.03)} #rDb .lab{color:#6f9ad0}
+  #rTome{left:650px;top:150px;width:610px;height:360px;border-color:#6b5a2e;background:rgba(201,150,40,.035)} #rTome .lab{color:#c9a24a}
+
+  .node{position:absolute;border:1.6px solid #2c3b55;border-radius:12px;background:#152034;display:flex;flex-direction:column;justify-content:center;padding:0 14px;
+        transition:border-color .45s,box-shadow .45s,background .45s}
+  .node .t{font-weight:700;font-size:14.5px;white-space:nowrap}
+  .node .s{font-size:12px;color:#7f91aa;margin-top:3px;white-space:nowrap;transition:color .35s}
+  .node.on{border-color:#4f9dff;box-shadow:0 0 0 1px #4f9dff,0 0 24px rgba(79,157,255,.45)} .node.on .s{color:#9cc6ff}
+  .node.pool{border-color:#a78bfa;box-shadow:0 0 0 1px #a78bfa,0 0 24px rgba(167,139,250,.45)} .node.pool .s{color:#c4b5fd}
+  .node.ok{border-color:#34d399;box-shadow:0 0 0 1px #34d399,0 0 24px rgba(52,211,153,.4)} .node.ok .s{color:#6ee7b7}
+  .node.bad{border-color:#f87171;box-shadow:0 0 0 1px #f87171,0 0 24px rgba(248,113,113,.45)} .node.bad .s{color:#fca5a5}
+  .node.done{border-color:#3d5a85} .node.done .s{color:#9fb3cf}
+  .node.flash{animation:nflash .9s ease}
+  @keyframes nflash{25%{box-shadow:0 0 0 9px rgba(248,113,113,.5)}}
+
+  .node.tb{justify-content:flex-start;padding:11px 14px}
+  .hdr{display:flex;align-items:baseline;gap:10px}
+  .hdr .s{margin:0}
+  .badge{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.08em;padding:3px 9px;border-radius:20px;border:1.2px solid;text-transform:uppercase}
+  .b-up{color:#6ee7b7;background:#0f2b25;border-color:#2f8f6a}
+  .b-down{color:#fca5a5;background:#2e1518;border-color:#c25454}
+  .b-none{display:none}
+
+  table.mt{width:100%;border-collapse:separate;border-spacing:0 5px;table-layout:fixed;margin-top:8px}
+  table.mt th{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:#6f819b;text-align:left;padding:0 9px;text-transform:uppercase}
+  table.mt td{font:600 12px ui-monospace,Menlo,Consolas,monospace;padding:8px 9px;background:#111a2a;color:#cbd5e1;border-top:1px solid #26344b;border-bottom:1px solid #26344b;
+    white-space:nowrap;overflow:hidden;transition:background .45s,color .45s,border-color .45s,opacity .45s}
+  table.mt td:first-child{border-left:1px solid #26344b;border-radius:7px 0 0 7px}
+  table.mt td:last-child{border-right:1px solid #26344b;border-radius:0 7px 7px 0}
+  table.mt td.cb{background:#132744;color:#9cc6ff}
+  table.mt td.cp{background:#1d1a3a;color:#c4b5fd}
+  table.mt td.e{color:#56657a;font-weight:500;font-family:-apple-system,Segoe UI,Arial,sans-serif}
+  table.mt tr.ring td{border-color:#34d399;box-shadow:0 0 12px rgba(52,211,153,.25)}
+  table.mt tr.pulse td{animation:rp 1.6s ease}
+  @keyframes rp{25%{box-shadow:inset 0 0 0 2px #fbbf24}}
+  tr.hide{display:none}
+  .pill{display:inline-block;font:800 9.5px -apple-system,Segoe UI,Arial,sans-serif;letter-spacing:.06em;padding:2px 8px;border-radius:9px;border:1.2px solid}
+  .p-av{color:#6ee7b7;background:#0f2b25;border-color:#2f8f6a}
+  .p-res{color:#fcd34d;background:#2a2110;border-color:#d29a1e}
+  .p-used{color:#9fb3cf;background:#16202f;border-color:#3d5a85}
+
+  .tag{position:absolute;font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:4px 11px;border-radius:10px;background:#1b2536;color:#8ea0b8;border:1px solid #2c3b55;transition:opacity .4s}
+  .off{opacity:0 !important;pointer-events:none}
+
+  .banner{position:absolute;left:20px;top:528px;width:1240px;height:84px;border-radius:12px;border:1.6px solid #34d399;background:#0d2a22;
+    box-shadow:0 0 28px rgba(52,211,153,.25);display:flex;flex-direction:column;justify-content:center;padding:0 22px;transition:opacity .6s}
+  .banner .a{font-size:15px;font-weight:800;color:#d1fae5}
+  .banner .b{font:700 13.5px ui-monospace,Menlo,Consolas,monospace;margin-top:5px;color:#a7f3d0}
+  .banner .b .ar{color:#4b6b60;margin:0 8px}
+
+  .panel{margin-top:12px;background:#121b2b;border:1px solid #1f2b3e;border-left:5px solid #4f9dff;border-radius:10px;padding:12px 16px;min-height:74px;transition:border-color .4s}
+  .panel.bad{border-left-color:#f87171}.panel.good{border-left-color:#34d399}
+  #kick{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#7f91aa;margin-bottom:4px}
+  #narr{font-size:15.5px}
+  .ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+  .ctrl button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border-radius:8px;border:1px solid #2c3b55;background:#121b2b;color:#e6edf6;cursor:pointer}
+  .ctrl button:disabled{opacity:.35;cursor:default}
+  .ctrl button.pri{background:#2f6db5;border-color:#2f6db5}
+  #cnt{margin-left:auto;font-size:12.5px;color:#7f91aa}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Always prefetch: card creation with TOME up or down</h1>
+  <p class="subt">All card numbers, tokens and ids are made up.</p>
+
+  <div class="bar">
+    <div class="seg">
+      <button id="scDown" class="f sel">TOME down</button>
+      <button id="scUp" class="p">TOME up</button>
+    </div>
+    <div class="legend">
+      <span><i style="background:#4f9dff"></i>The real card</span>
+      <span><i style="background:#a78bfa"></i>The pool's chain, made earlier by the batch job</span>
+      <span><i style="background:#34d399"></i>Complete chain</span>
+      <span><i style="background:#f87171"></i>Down / failed</span>
+    </div>
+  </div>
+
+  <div class="outer" id="outer">
+    <div class="stage" id="stage">
+      <div class="region" id="rDb"><div class="lab">Card domain · our own database</div></div>
+      <div class="region" id="rTome"><div class="lab">TOME · two separate production environments</div></div>
+
+      <svg id="wires" viewBox="0 0 1280 630">
+        <defs>
+          <filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="630">
+            <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="edges"></g><g id="pulses"></g>
+      </svg>
+
+      <div class="node" id="nCli"  style="left:40px;top:30px;width:240px;height:74px" data-sub="—"><div class="t">Client</div><div class="s"></div></div>
+      <div class="node" id="nApi"  style="left:470px;top:30px;width:240px;height:74px" data-sub="Card domain"><div class="t">Card API</div><div class="s"></div></div>
+      <div class="node" id="nTsys" style="left:1040px;top:30px;width:200px;height:74px" data-sub="Issues the card number"><div class="t">TSYS</div><div class="s"></div></div>
+
+      <div class="node tb" id="nRes" style="left:40px;top:170px;width:570px;height:130px" data-sub="Filled earlier by the batch job">
+        <div class="hdr"><div class="t">Reservoir table</div><div class="s"></div></div>
+        <table class="mt"><colgroup><col style="width:22%"><col style="width:48%"><col style="width:30%"></colgroup>
+          <tr><th>Corr id</th><th>Card ref id (16)</th><th>Status</th></tr>
+          <tr id="resRow"><td class="cp">C-2048</td><td class="cp">5500 0036 1742 9999</td><td id="resSt"></td></tr>
+        </table>
+      </div>
+
+      <div class="node tb" id="nPark" style="left:40px;top:330px;width:570px;height:130px" data-sub="Waiting for TOME to recover">
+        <div class="hdr"><div class="t">Parked table</div><div class="s"></div></div>
+        <table class="mt"><colgroup><col style="width:32%"><col style="width:32%"><col style="width:15%"><col style="width:21%"></colgroup>
+          <tr><th>Card number</th><th>Ref id given</th><th>Corr id</th><th>Status</th></tr>
+          <tr id="parkEmpty"><td colspan="4" class="e" style="text-align:center">nothing parked</td></tr>
+          <tr id="parkRow" class="hide"><td class="cb">4111 1111 1111 1111</td><td class="cp">5500 0036 1742 9999</td><td class="cp">C-2048</td><td><span class="pill p-res">PENDING</span></td></tr>
+        </table>
+      </div>
+
+      <div class="node tb" id="nPci" style="left:670px;top:170px;width:570px;height:130px" data-sub="">
+        <div class="hdr"><div class="t">TOME internal · PCI</div><div class="s"></div><div class="badge b-none" id="bPci"></div></div>
+        <table class="mt"><colgroup><col style="width:38%"><col style="width:44%"><col style="width:18%"></colgroup>
+          <tr><th>Card number (16)</th><th>Internal token (19)</th><th>Corr id</th></tr>
+          <tr id="pciRow"><td id="pciCard" class="e">none yet</td><td class="cp">900 0318 6620 4415 8888</td><td class="cp">C-2048</td></tr>
+        </table>
+      </div>
+
+      <div class="node tb" id="nHcd" style="left:670px;top:330px;width:570px;height:130px" data-sub="">
+        <div class="hdr"><div class="t">TOME external · HCD</div><div class="s"></div><div class="badge b-none" id="bHcd"></div></div>
+        <table class="mt"><colgroup><col style="width:52%"><col style="width:48%"></colgroup>
+          <tr><th>Internal token (19)</th><th>Card ref id (16)</th></tr>
+          <tr id="hcdRow"><td class="cp">900 0318 6620 4415 8888</td><td class="cp">5500 0036 1742 9999</td></tr>
+        </table>
+      </div>
+
+      <div class="tag off" id="tagHcd" style="left:1040px;top:470px">NOT CALLED · NOT NEEDED</div>
+
+      <div class="banner off" id="banner">
+        <div class="a" id="banA"></div>
+        <div class="b">5500 0036 1742 9999<span class="ar">→</span>900 0318 6620 4415 8888<span class="ar">→</span>4111 1111 1111 1111</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel"><div id="kick"></div><div id="narr"></div></div>
+  <div class="ctrl">
+    <button id="back">◀ Back</button>
+    <button id="next" class="pri">Next ▶</button>
+    <button id="replay">↻ Replay step</button>
+    <button id="all">Play all</button>
+    <span id="cnt"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var NS="http://www.w3.org/2000/svg";
+  var stage=$("stage"), outer=$("outer"), SCALE=1, W=1280, H=630;
+  function fit(){ SCALE=outer.clientWidth/W; stage.style.transform="scale("+SCALE+")"; outer.style.height=(H*SCALE)+"px"; }
+  addEventListener("resize",fit); fit();
+
+  var C={blue:"#4f9dff",purple:"#a78bfa",green:"#34d399",red:"#f87171",grey:"#8ea0b8"};
+  var CARD="4111 1111 1111 1111", REF="5500 0036 1742 9999";
+
+  var EDGES={
+    eCli: {d:"M280 67 L470 67", lab:[375,57,"create card","middle"]},
+    eTsys:{d:"M710 67 L1040 67", lab:[875,57,"issue card number","middle"]},
+    eRes: {d:"M600 104 L600 170", lab:[612,142,"reserve","start"]},
+    ePark:{d:"M500 104 L500 126 L10 126 L10 395 L40 395", lab:[255,119,"park","middle"]},
+    ePci: {d:"M660 104 C660 150 955 118 955 170", lab:[828,128,"attach card to C-2048","middle"]},
+    eRec: {d:"M610 395 C642 395 638 235 670 235"},
+    eChain:{d:"M955 300 L955 330"}
+  };
+  (function build(){
+    var g=$("edges");
+    Object.keys(EDGES).forEach(function(id){
+      var e=EDGES[id];
+      var b=document.createElementNS(NS,"path"); b.setAttribute("d",e.d); b.setAttribute("class","base"); b.id=id+"_b"; g.appendChild(b);
+      var l=document.createElementNS(NS,"path"); l.setAttribute("d",e.d); l.setAttribute("class","lit"); l.setAttribute("filter","url(#glow)"); l.id=id+"_l"; g.appendChild(l);
+      if(e.lab){ var t=document.createElementNS(NS,"text"); t.setAttribute("x",e.lab[0]); t.setAttribute("y",e.lab[1]); t.setAttribute("text-anchor",e.lab[3]);
+        t.setAttribute("class","elab"); t.textContent=e.lab[2]; g.appendChild(t); }
+    });
+  })();
+  function lit(id,color,frac){ var l=$(id+"_l"), n=$(id+"_b").getTotalLength(); l.style.stroke=color; l.style.strokeDasharray=n+" "+n; l.style.strokeDashoffset=n*(1-frac); }
+
+  var EPOCH=0, T=[];
+  function at(ms,fn){ T.push(setTimeout(fn,ms)); }
+  function clearT(){ EPOCH++; T.forEach(clearTimeout); T=[]; $("pulses").innerHTML=""; }
+  function travel(id,color,ms,opt){
+    opt=opt||{}; var my=EPOCH, p=$(id+"_b"), n=p.getTotalLength(), stop=opt.stopAt||1;
+    var c=document.createElementNS(NS,"circle"); c.setAttribute("r",opt.r||7); c.setAttribute("fill",color); c.setAttribute("filter","url(#glow)");
+    $("pulses").appendChild(c); var t0=null;
+    function f(now){
+      if(my!==EPOCH){ c.remove(); return; }
+      if(t0===null) t0=now;
+      var t=Math.min(1,(now-t0)/ms), e=(t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2)*stop;
+      var pt=p.getPointAtLength(opt.rev?n*(1-e):n*e); c.setAttribute("cx",pt.x); c.setAttribute("cy",pt.y);
+      if(!opt.noLit) lit(id,color,opt.rev?1:e);
+      if(t<1) requestAnimationFrame(f); else { c.remove(); if(opt.done) opt.done(); }
+    }
+    requestAnimationFrame(f);
+  }
+  function node(id,cls,sub){ var n=$(id), tb=n.classList.contains("tb"); n.className="node"+(tb?" tb":"")+(cls?" "+cls:""); if(sub!=null) n.querySelector(".s").textContent=sub; }
+  function flash(id){ var n=$(id); n.classList.remove("flash"); void n.offsetWidth; n.classList.add("flash"); }
+  function pulse(id){ var r=$(id); r.classList.remove("pulse"); void r.offsetWidth; r.classList.add("pulse"); }
+  function badge(id,state){ var b=$(id); b.className="badge "+(state==="up"?"b-up":state==="down"?"b-down":state==="back"?"b-up":"b-none");
+    b.textContent=state==="up"?"UP":state==="down"?"DOWN":state==="back"?"BACK UP":""; }
+  function resSt(s){ $("resSt").innerHTML=s==="av"?'<span class="pill p-av">AVAILABLE</span>':s==="res"?'<span class="pill p-res">RESERVED</span>':'<span class="pill p-used">USED</span>'; }
+  function pciCard(filled){ var c=$("pciCard"); c.className=filled?"cb":"e"; c.textContent=filled?CARD:"none yet"; }
+  function parked(on){ $("parkEmpty").classList.toggle("hide",on); $("parkRow").classList.toggle("hide",!on); }
+  function vis(id,on){ $(id).classList.toggle("off",!on); }
+  function ring(on){ ["pciRow","hcdRow"].forEach(function(r){ $(r).classList.toggle("ring",on); }); }
+
+  var SCN="down"; function D(){ return SCN==="down"; }
+
+  function reset(){
+    ["nCli","nApi","nTsys","nRes","nPark","nPci","nHcd"].forEach(function(id){ node(id,"",$(id).dataset.sub); });
+    var tomeState=D()?"down":"up";
+    badge("bPci",tomeState); badge("bHcd",tomeState);
+    resSt("av"); pciCard(false); parked(false); ring(false);
+    vis("tagHcd",false); vis("banner",false);
+    Object.keys(EDGES).forEach(function(id){ lit(id,C.blue,0); });
+  }
+
+  var STEPS=[
+    { t:"Create card", dur:5200,
+      x:function(){ return "The client asks us to create a card. We call TSYS, and it gives us back the real <b>16-digit card number</b>."; },
+      run:function(){
+        at(200,function(){ node("nCli","on","Create card request"); travel("eCli",C.grey,1000); });
+        at(1200,function(){ node("nApi","on","Creating the card"); travel("eTsys",C.blue,1100); });
+        at(2300,function(){ node("nTsys","on","Issued "+CARD); travel("eTsys",C.blue,1100,{rev:true,noLit:true}); });
+        at(3400,function(){ node("nTsys","done",null); node("nApi","on","Has card number "+CARD); node("nCli","done","Waiting"); });
+      },
+      end:function(){ lit("eCli",C.grey,1); lit("eTsys",C.blue,1); node("nCli","done","Waiting"); node("nTsys","done","Issued "+CARD); node("nApi","on","Has card number "+CARD); } },
+
+    { t:"Reserve from our reservoir", dur:4400,
+      x:function(){ return D() ? "This time <b>both TOME environments are down</b>. That doesn't stop us reserving: the reservoir is in <b>our own database</b>. We reserve ref id 5500 0036 1742 9999, linked to correlation id C-2048."
+                               : "We reserve from the reservoir in <b>our own database</b>: ref id 5500 0036 1742 9999, linked to correlation id C-2048. Its chain in TOME was built earlier by the batch job."; },
+      run:function(){
+        at(200,function(){ if(D()){ node("nPci","bad",null); node("nHcd","bad",null); flash("nPci"); flash("nHcd"); } pulse("pciRow"); pulse("hcdRow"); });
+        at(1200,function(){ node("nRes","pool","Reserving C-2048"); pulse("resRow"); travel("eRes",C.purple,1000,{rev:true}); });
+        at(2300,function(){ resSt("res"); node("nRes","done","Filled earlier by the batch job"); node("nApi","on","Holding ref id "+REF); });
+      },
+      end:function(){ if(D()){ node("nPci","bad",null); node("nHcd","bad",null); } lit("eRes",C.purple,1); resSt("res"); node("nApi","on","Holding ref id "+REF); } },
+
+    { t:"Attach the card number to C-2048", dur:4200,
+      x:function(){ return D() ? "We try the only TOME call card creation needs: attach the card number to C-2048 in TOME internal. <b>TOME internal is down</b>, so it fails."
+                               : "We make the only TOME call card creation needs: attach the card number to C-2048 in TOME internal. It <b>succeeds</b>, and the pool's chain now leads to the real card."; },
+      run:function(){
+        if(D()){
+          at(200,function(){ travel("ePci",C.blue,1100,{stopAt:.92}); });
+          at(1300,function(){ flash("nPci"); travel("ePci",C.red,900,{rev:true,noLit:true}); lit("ePci",C.red,1); });
+          at(2300,function(){ node("nApi","bad","Attach failed · TOME down"); });
+        } else {
+          at(200,function(){ travel("ePci",C.blue,1200); });
+          at(1400,function(){ node("nPci","on","Card attached"); pciCard(true); pulse("pciRow"); });
+          at(2200,function(){ node("nApi","on","Card mapped in TOME"); });
+        }
+      },
+      end:function(){
+        if(D()){ lit("ePci",C.red,1); node("nApi","bad","Attach failed · TOME down"); }
+        else { lit("ePci",C.blue,1); node("nPci","on","Card attached"); pciCard(true); node("nApi","on","Card mapped in TOME"); }
+      } },
+
+    { t:function(){ return D()?"Park it and reply":"Reply to the client"; }, dur:5200,
+      x:function(){ return D() ? "We <b>park the card number with correlation id C-2048</b> and the ref id we're handing out. <b>No internal token is stored.</b> The client gets the ref id and card creation succeeds."
+                               : "Nothing to park. The client gets the ref id and card creation succeeds. TOME external is never called at creation: <b>its side of the chain already exists</b>."; },
+      run:function(){
+        var t=200;
+        if(D()){
+          at(200,function(){ travel("ePark",C.blue,1300); });
+          at(1500,function(){ node("nPark","on","1 row waiting"); parked(true); pulse("parkRow"); node("nApi","on","Card parked"); });
+          t=2000;
+        }
+        at(t,function(){ resSt("used"); travel("eCli",C.purple,1100,{rev:true}); });
+        at(t+1100,function(){ node("nCli","pool","Got ref id "+REF); vis("tagHcd",true); node("nApi","done","Card created"); });
+      },
+      end:function(){
+        if(D()){ lit("ePark",C.blue,1); node("nPark","on","1 row waiting"); parked(true); }
+        resSt("used"); lit("eCli",C.purple,1); node("nCli","pool","Got ref id "+REF); vis("tagHcd",true); node("nApi","done","Card created");
+      } },
+
+    { t:function(){ return D()?"TOME is back. Recovery finishes the job.":"Nothing to recover"; }, dur:5200,
+      x:function(){ return D() ? "TOME recovers. The recovery job attaches the parked card number to <b>C-2048</b>. It succeeds, because this card was <b>never mapped to any other token</b>. The parked row is cleared."
+                               : "With TOME up there is no parked row and no recovery job. The mapping was made at creation."; },
+      run:function(){
+        if(D()){
+          at(200,function(){ badge("bPci","back"); badge("bHcd","back"); node("nPci","done",null); node("nHcd","done",null); vis("tagHcd",false); });
+          at(900,function(){ pulse("parkRow"); node("nPark","on","Recovery job running"); travel("eRec",C.blue,1200); });
+          at(2100,function(){ node("nPci","on","Card attached by recovery"); pciCard(true); pulse("pciRow"); });
+          at(3000,function(){ parked(false); pulse("parkEmpty"); node("nPark","done","Cleared"); });
+        } else {
+          at(200,function(){ node("nPark","done","Nothing parked"); vis("tagHcd",false); });
+        }
+      },
+      end:function(){
+        vis("tagHcd",false);
+        if(D()){ badge("bPci","back"); badge("bHcd","back"); lit("eRec",C.blue,1); node("nPci","on","Card attached by recovery"); pciCard(true); parked(false); node("nPark","done","Cleared"); node("nHcd","done",null); }
+        else { node("nPark","done","Nothing parked"); }
+      } },
+
+    { t:"Why it works", dur:4000,
+      x:function(){ return D() ? "The client's ref id leads to the pool token, and the pool token now leads to the real card. TOME being down <b>delayed</b> the mapping. It never <b>broke</b> it."
+                               : "The client's ref id leads to the pool token, and the pool token leads to the real card. <b>One TOME call at creation</b> completes the chain."; },
+      run:function(){
+        at(200,function(){ node("nPci","ok","Chain complete"); node("nHcd","ok","Chain complete"); ring(true); travel("eChain",C.green,600); });
+        at(900,function(){ $("banA").textContent=D()?"TOME was down and card creation still succeeded. Once TOME recovered, the chain completed."
+                                                   :"Card creation succeeded with one TOME call, and the chain is complete."; vis("banner",true); });
+      },
+      end:function(){} }
+  ];
+
+  var i=0, auto=false;
+  function title(s){ return typeof s.t==="function"?s.t():s.t; }
+  function go(n){
+    clearT(); i=n; var s=STEPS[i];
+    reset(); for(var j=0;j<i;j++) STEPS[j].end();
+    $("kick").textContent="Step "+(i+1)+" · "+title(s); $("narr").innerHTML=s.x();
+    $("panel").className="panel"+(i===5?" good":(D()&&i===2?" bad":""));
+    $("cnt").textContent="Step "+(i+1)+" of "+STEPS.length;
+    $("back").disabled=(i===0); $("next").disabled=(i===STEPS.length-1);
+    requestAnimationFrame(function(){ s.run(); });
+    if(auto){ if(i<STEPS.length-1) at(s.dur+900,function(){ go(i+1); }); else at(s.dur,stopAuto); }
+  }
+  function stopAuto(){ auto=false; $("all").textContent="Play all"; }
+  function scn(v){ SCN=v; $("scDown").classList.toggle("sel",v==="down"); $("scUp").classList.toggle("sel",v==="up"); go(auto?0:i); }
+  $("scDown").onclick=function(){ scn("down"); };
+  $("scUp").onclick=function(){ scn("up"); };
+  $("next").onclick=function(){ stopAuto(); if(i<STEPS.length-1) go(i+1); };
+  $("back").onclick=function(){ stopAuto(); if(i>0) go(i-1); };
+  $("replay").onclick=function(){ stopAuto(); go(i); };
+  $("all").onclick=function(){ if(auto){ stopAuto(); clearT(); return; } auto=true; $("all").textContent="Stop"; go(0); };
+  addEventListener("keydown",function(e){ if(e.key==="ArrowRight")$("next").click(); if(e.key==="ArrowLeft")$("back").click(); });
+  go(0);
+})();
+</script>
+</body>
+</html>
