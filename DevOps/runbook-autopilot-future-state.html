@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Runbook AutoPilot Flow</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b111c;color:#e6edf6;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:1320px;margin:0 auto;padding:22px 16px 30px}
+  h1{margin:0 0 4px;font-size:22px;font-weight:700}
+  .subt{margin:0 0 14px;color:#93a3b8;font-size:13.5px}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+  .seg{display:inline-flex;border:1px solid #2c3b55;border-radius:10px;overflow:hidden}
+  .seg button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border:0;background:#121b2b;color:#8ea0b8;cursor:pointer}
+  .seg button.sel.p{background:#0f3a2c;color:#6ee7b7}
+  .seg button.sel.f{background:#3d1717;color:#fca5a5}
+  .outer{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 0,#15213a 0,#0d1522 70%);border:1px solid #1f2b3e;border-radius:14px}
+  .stage{position:absolute;left:0;top:0;width:1280px;height:630px;transform-origin:0 0}
+  svg#wires{position:absolute;left:0;top:0;width:1280px;height:630px;overflow:visible}
+  .base{fill:none;stroke:#2a3850;stroke-width:2;stroke-dasharray:5 6}
+  .lit{fill:none;stroke-width:3.2;stroke-linecap:round}
+  .elab{fill:#6f819b;font:700 11px -apple-system,Segoe UI,Arial,sans-serif;letter-spacing:.05em;text-transform:uppercase}
+
+  .region{position:absolute;left:660px;top:190px;width:600px;height:410px;border:1.6px dashed #6b5a2e;border-radius:16px;background:rgba(201,150,40,.035)}
+  .region .lab{position:absolute;left:16px;bottom:10px;font-weight:800;font-size:11px;letter-spacing:.12em;color:#c9a24a;text-transform:uppercase}
+  .lane{position:absolute;left:20px;top:8px;font-weight:800;font-size:10.5px;letter-spacing:.14em;color:#5d6f88;text-transform:uppercase}
+
+  .node{position:absolute;border:1.6px solid #2c3b55;border-radius:12px;background:#152034;display:flex;flex-direction:column;justify-content:center;padding:0 14px;
+        transition:border-color .45s,box-shadow .45s,background .45s}
+  .node .t{font-weight:700;font-size:14.5px;white-space:nowrap}
+  .node .s{font-size:12px;color:#7f91aa;margin-top:3px;white-space:nowrap;transition:color .35s}
+  .node.on{border-color:#4f9dff;box-shadow:0 0 0 1px #4f9dff,0 0 24px rgba(79,157,255,.45)} .node.on .s{color:#9cc6ff}
+  .node.val{border-color:#a78bfa;box-shadow:0 0 0 1px #a78bfa,0 0 24px rgba(167,139,250,.45)} .node.val .s{color:#c4b5fd}
+  .node.ok{border-color:#34d399;box-shadow:0 0 0 1px #34d399,0 0 24px rgba(52,211,153,.4)} .node.ok .s{color:#6ee7b7}
+  .node.bad{border-color:#f87171;box-shadow:0 0 0 1px #f87171,0 0 24px rgba(248,113,113,.45)} .node.bad .s{color:#fca5a5}
+  .node.done{border-color:#3d5a85} .node.done .s{color:#9fb3cf}
+
+  .node.ro{justify-content:flex-start;padding:14px}
+  .rows{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+  .row{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 12px;border-radius:9px;border:1px solid #26344b;background:#111a2a;
+       font-size:13px;font-weight:600;transition:border-color .4s,background .4s,opacity .5s}
+  .row .st{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6f819b}
+  .row.hid{opacity:0}
+  .row.run{border-color:#4f9dff;background:#132744} .row.run .st{color:#9cc6ff}
+  .row.chk{border-color:#a78bfa;background:#1d1a3a} .row.chk .st{color:#c4b5fd}
+  .row.ok{border-color:#2f8f6a;background:#0f2b25} .row.ok .st{color:#6ee7b7}
+  .row.bad{border-color:#c25454;background:#2e1518} .row.bad .st{color:#fca5a5}
+  .row.skip{opacity:.45}
+  .foot{margin-top:10px;font-size:12.5px;font-weight:700;color:#7f91aa;transition:color .4s}
+  .foot.ok{color:#6ee7b7}.foot.bad{color:#fca5a5}.foot.on{color:#9cc6ff}
+
+  .panel{margin-top:12px;background:#121b2b;border:1px solid #1f2b3e;border-left:5px solid #4f9dff;border-radius:10px;padding:12px 16px;min-height:74px;transition:border-color .4s}
+  .panel.bad{border-left-color:#f87171}.panel.good{border-left-color:#34d399}
+  #kick{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#7f91aa;margin-bottom:4px}
+  #narr{font-size:15.5px}
+  .ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+  .ctrl button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border-radius:8px;border:1px solid #2c3b55;background:#121b2b;color:#e6edf6;cursor:pointer}
+  .ctrl button:disabled{opacity:.35;cursor:default}
+  .ctrl button.pri{background:#2f6db5;border-color:#2f6db5}
+  #cnt{margin-left:auto;font-size:12.5px;color:#7f91aa}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Runbook AutoPilot: how it works</h1>
+  <p class="subt">Future state. One master runbook, locked per release, run in one click, every step validated automatically.</p>
+
+  <div class="bar">
+    <div class="seg">
+      <button id="scPass" class="p sel">All steps pass</button>
+      <button id="scFail" class="f">A step fails</button>
+    </div>
+  </div>
+
+  <div class="outer" id="outer">
+    <div class="stage" id="stage">
+      <div class="lane">Prepare once per release</div>
+      <div class="region"><div class="lab">Target environments · examples</div></div>
+      <svg id="wires" viewBox="0 0 1280 630">
+        <defs>
+          <filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="630">
+            <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="edges"></g>
+        <g id="pulses"></g>
+      </svg>
+
+      <div class="node" id="nMaster" style="left:30px;top:40px;width:180px;height:66px" data-sub="One per application"><div class="t">Master runbook</div><div class="s"></div></div>
+      <div class="node" id="nClone"  style="left:260px;top:40px;width:180px;height:66px" data-sub="Copy for this release"><div class="t">Clone</div><div class="s"></div></div>
+      <div class="node" id="nSelect" style="left:490px;top:40px;width:180px;height:66px" data-sub="Only what's in scope"><div class="t">Select steps</div><div class="s"></div></div>
+      <div class="node" id="nLock"   style="left:720px;top:40px;width:180px;height:66px" data-sub="Reviewed, then frozen"><div class="t">Lock</div><div class="s"></div></div>
+
+      <div class="node ro" id="nRO" style="left:30px;top:200px;width:330px;height:320px" data-sub="Waiting for one click">
+        <div class="t">Release Orchestrator</div><div class="s"></div>
+        <div class="rows">
+          <div class="row hid" id="r0"><span>1 · Infrastructure change</span><span class="st">Pending</span></div>
+          <div class="row hid" id="r1"><span>2 · Database change</span><span class="st">Pending</span></div>
+          <div class="row hid" id="r2"><span>3 · Application deploy</span><span class="st">Pending</span></div>
+          <div class="row hid" id="r3"><span>4 · Config / other</span><span class="st">Pending</span></div>
+        </div>
+        <div class="foot" id="roFoot"></div>
+      </div>
+
+      <div class="node" id="nExec" style="left:420px;top:330px;width:190px;height:80px" data-sub="Spinnaker / Jules"><div class="t">Pipeline</div><div class="s"></div></div>
+
+      <div class="node" id="t0" style="left:690px;top:220px;width:210px;height:58px" data-sub="—"><div class="t">Infrastructure</div><div class="s"></div></div>
+      <div class="node" id="t1" style="left:690px;top:295px;width:210px;height:58px" data-sub="—"><div class="t">Database</div><div class="s"></div></div>
+      <div class="node" id="t2" style="left:690px;top:370px;width:210px;height:58px" data-sub="—"><div class="t">Application (e.g. ECS)</div><div class="s"></div></div>
+      <div class="node" id="t3" style="left:690px;top:445px;width:210px;height:58px" data-sub="—"><div class="t">Config / other</div><div class="s"></div></div>
+
+      <div class="node" id="nLam" style="left:980px;top:300px;width:250px;height:90px" data-sub="Idle"><div class="t">Validation Lambda</div><div class="s"></div></div>
+      <div class="node" id="nEv"  style="left:980px;top:450px;width:250px;height:70px" data-sub="Nothing yet"><div class="t">Evidence captured</div><div class="s"></div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel"><div id="kick"></div><div id="narr"></div></div>
+  <div class="ctrl">
+    <button id="back">◀ Back</button>
+    <button id="next" class="pri">Next ▶</button>
+    <button id="replay">↻ Replay step</button>
+    <button id="all">Play all</button>
+    <span id="cnt"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var NS="http://www.w3.org/2000/svg";
+  var stage=$("stage"), outer=$("outer"), SCALE=1, W=1280, H=630;
+  function fit(){ SCALE=outer.clientWidth/W; stage.style.transform="scale("+SCALE+")"; outer.style.height=(H*SCALE)+"px"; }
+  addEventListener("resize",fit); fit();
+
+  var C={blue:"#4f9dff",purple:"#a78bfa",green:"#34d399",red:"#f87171"};
+  var TY=[249,324,399,474];
+  var NAMES=["Infrastructure change","Database change","Application deploy","Config / other"];
+
+  var EDGES={
+    eM:{d:"M210 73 L260 73"}, eC:{d:"M440 73 L490 73"}, eS:{d:"M670 73 L720 73"},
+    eLock:{d:"M810 106 C810 165 195 145 195 200", lab:[500,148,"one click in RO","middle"]},
+    eToExec:{d:"M360 370 L420 370"},
+    eInvoke:{d:"M515 330 C515 170 1105 170 1105 300", lab:[812,182,"invoke validation","middle"]},
+    eResult:{d:"M1105 390 L1105 450", lab:[1115,425,"pass / fail","start"]},
+    eBack:{d:"M1105 520 L1105 612 L195 612 L195 520", lab:[420,604,"result back to RO","middle"]}
+  };
+  for(var k=0;k<4;k++){
+    EDGES["eX"+k]={d:"M610 370 C650 370 650 "+TY[k]+" 690 "+TY[k]};
+    EDGES["eV"+k]={d:"M980 345 C940 345 940 "+TY[k]+" 900 "+TY[k]};
+  }
+  (function build(){
+    var g=$("edges");
+    Object.keys(EDGES).forEach(function(id){
+      var e=EDGES[id];
+      var b=document.createElementNS(NS,"path"); b.setAttribute("d",e.d); b.setAttribute("class","base"); b.id=id+"_b"; g.appendChild(b);
+      var l=document.createElementNS(NS,"path"); l.setAttribute("d",e.d); l.setAttribute("class","lit"); l.setAttribute("filter","url(#glow)"); l.id=id+"_l"; g.appendChild(l);
+      if(e.lab){ var t=document.createElementNS(NS,"text"); t.setAttribute("x",e.lab[0]); t.setAttribute("y",e.lab[1]); t.setAttribute("text-anchor",e.lab[3]);
+        t.setAttribute("class","elab"); t.textContent=e.lab[2]; g.appendChild(t); }
+    });
+  })();
+
+  function lit(id,color,frac){ var l=$(id+"_l"), n=$(id+"_b").getTotalLength(); l.style.stroke=color; l.style.strokeDasharray=n+" "+n; l.style.strokeDashoffset=n*(1-frac); }
+
+  var EPOCH=0, T=[];
+  function at(ms,fn){ T.push(setTimeout(fn,ms)); }
+  function clearT(){ EPOCH++; T.forEach(clearTimeout); T=[]; $("pulses").innerHTML=""; }
+  function travel(id,color,ms,opt){
+    opt=opt||{}; var my=EPOCH, p=$(id+"_b"), n=p.getTotalLength();
+    var c=document.createElementNS(NS,"circle"); c.setAttribute("r",opt.r||7); c.setAttribute("fill",color); c.setAttribute("filter","url(#glow)");
+    $("pulses").appendChild(c); var t0=null;
+    function f(now){
+      if(my!==EPOCH){ c.remove(); return; }
+      if(t0===null) t0=now;
+      var t=Math.min(1,(now-t0)/ms), e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+      var pt=p.getPointAtLength(opt.rev?n*(1-e):n*e); c.setAttribute("cx",pt.x); c.setAttribute("cy",pt.y);
+      if(!opt.noLit) lit(id,color,e);
+      if(t<1) requestAnimationFrame(f); else c.remove();
+    }
+    requestAnimationFrame(f);
+  }
+  function node(id,cls,sub){ var n=$(id), ro=n.classList.contains("ro"); n.className="node"+(ro?" ro":"")+(cls?" "+cls:""); if(sub!=null) n.querySelector(".s").textContent=sub; }
+  function row(k,cls,st){ var r=$("r"+k); r.className="row"+(cls?" "+cls:""); if(st!=null) r.querySelector(".st").textContent=st; }
+  function foot(cls,txt){ var f=$("roFoot"); f.className="foot"+(cls?" "+cls:""); f.textContent=txt; }
+
+  function reset(){
+    ["nMaster","nClone","nSelect","nLock","nRO","nExec","t0","t1","t2","t3","nLam","nEv"].forEach(function(id){ node(id,"",$(id).dataset.sub); });
+    for(var k=0;k<4;k++) row(k,"hid","Pending");
+    foot("","");
+    Object.keys(EDGES).forEach(function(id){ lit(id,C.blue,0); });
+  }
+
+  var SCN="pass", FAILK=2;
+  function P(){ return SCN==="pass"; }
+  function stepPasses(k){ return P() || k!==FAILK; }
+  function evText(k){ return "Step "+(k+1)+" of 4 · recorded"; }
+
+  // one runbook step: execute -> target -> validate -> evidence -> back to RO
+  function runStep(k,t0,f){
+    var ok=stepPasses(k), rc=ok?C.green:C.red;
+    function A(ms,fn){ at(t0+ms*f,fn); }
+    A(0,function(){ row(k,"run","Running"); node("nRO","on",null); foot("on","Running step "+(k+1)+" of 4"); travel("eToExec",C.blue,600*f); });
+    A(650,function(){ node("nExec","on","Running step "+(k+1)); travel("eX"+k,C.blue,800*f); });
+    A(1500,function(){ node("t"+k,"on","Changed"); node("nExec","done","Spinnaker / Jules"); travel("eInvoke",C.purple,1000*f); });
+    A(2550,function(){ row(k,"chk","Validating"); node("nLam","val","Checking step "+(k+1)); node("t"+k,"done",null); travel("eV"+k,C.purple,600*f); });
+    A(3200,function(){ node("t"+k,"val","Being checked"); travel("eV"+k,C.purple,600*f,{rev:true,noLit:true,r:5}); });
+    A(3850,function(){ node("t"+k,ok?"ok":"bad",ok?"Verified":"Check failed"); node("nLam",ok?"ok":"bad",ok?"PASS":"FAIL"); travel("eResult",rc,500*f); });
+    A(4400,function(){ node("nEv",ok?"ok":"bad",ok?evText(k):"Step "+(k+1)+" failed · recorded"); travel("eBack",rc,1200*f); });
+    A(5650,function(){ row(k,ok?"ok":"bad",ok?"✓ Verified":"✕ Failed"); });
+    return 5800*f;
+  }
+  function stepEnd(k){
+    var ok=stepPasses(k), rc=ok?C.green:C.red;
+    row(k,ok?"ok":"bad",ok?"✓ Verified":"✕ Failed");
+    lit("eToExec",C.blue,1); lit("eX"+k,C.blue,1); lit("eInvoke",C.purple,1); lit("eV"+k,C.purple,1); lit("eResult",rc,1); lit("eBack",rc,1);
+    node("nExec","done","Spinnaker / Jules"); node("t"+k,ok?"ok":"bad",ok?"Verified":"Check failed");
+    node("nLam",ok?"ok":"bad",ok?"PASS":"FAIL"); node("nEv",ok?"ok":"bad",ok?evText(k):"Step "+(k+1)+" failed · recorded");
+  }
+
+  var STEPS=[
+    { t:"Master runbook", dur:2000,
+      x:function(){ return "Each application keeps <b>one master runbook</b>. Every step it could need, whether infra, database, app deploy or config, is written once, here."; },
+      run:function(){ at(200,function(){ node("nMaster","on",null); }); },
+      end:function(){ node("nMaster","done",null); } },
+
+    { t:"Clone for this release", dur:2200,
+      x:function(){ return "For a release, the master is <b>cloned</b>. Nobody writes a runbook from scratch."; },
+      run:function(){ at(200,function(){ travel("eM",C.blue,800); }); at(1000,function(){ node("nMaster","done",null); node("nClone","on",null); }); },
+      end:function(){ lit("eM",C.blue,1); node("nClone","done",null); } },
+
+    { t:"Select the steps in scope", dur:2200,
+      x:function(){ return "Only the steps this release needs are <b>selected</b>. The rest of the master stays untouched."; },
+      run:function(){ at(200,function(){ travel("eC",C.blue,800); }); at(1000,function(){ node("nClone","done",null); node("nSelect","on","4 steps in scope"); }); },
+      end:function(){ lit("eC",C.blue,1); node("nSelect","done","4 steps in scope"); } },
+
+    { t:"Review and lock", dur:2200,
+      x:function(){ return "The release runbook is reviewed once, then <b>locked</b>. What runs is exactly what was reviewed."; },
+      run:function(){ at(200,function(){ travel("eS",C.blue,800); }); at(1000,function(){ node("nSelect","done",null); node("nLock","on","Locked"); }); },
+      end:function(){ lit("eS",C.blue,1); node("nLock","done","Locked"); } },
+
+    { t:"One click in Release Orchestrator", dur:3600,
+      x:function(){ return "One click hands the locked runbook to <b>Release Orchestrator</b>. From here, no one runs steps by hand."; },
+      run:function(){
+        at(200,function(){ travel("eLock",C.blue,1300); });
+        at(1500,function(){ node("nLock","done",null); node("nRO","on","Running the locked runbook"); });
+        [0,1,2,3].forEach(function(k){ at(1800+k*250,function(){ row(k,"","Pending"); }); });
+      },
+      end:function(){ lit("eLock",C.blue,1); node("nRO","on","Running the locked runbook"); for(var k=0;k<4;k++) row(k,"","Pending"); } },
+
+    { t:"Step 1: execute, then validate", dur:6200,
+      x:function(){ return "RO runs step 1 through the pipeline, which changes the target. The pipeline then invokes the <b>validation Lambda</b>, which checks the change, records the evidence and reports back. Only then does RO move on."; },
+      run:function(){ runStep(0,200,1); },
+      end:function(){ stepEnd(0); } },
+
+    { t:"Every step, same pattern", dur:9000,
+      x:function(){ return P() ? "Every remaining step follows the same pattern: <b>execute, validate, record, move on</b>. The target can be infra, a database, an app on ECS or anything else."
+                               : "Every remaining step follows the same pattern. Here step 3, the application deploy, <b>fails its validation</b>. The failure is recorded like any other result."; },
+      run:function(){
+        var t=200;
+        for(var k=1;k<4;k++){ if(!P() && k>FAILK) break; t+=runStep(k,t,.48)+150; }
+      },
+      end:function(){ for(var k=1;k<4;k++){ if(!P() && k>FAILK) break; stepEnd(k); } } },
+
+    { t:"Outcome", dur:4200,
+      x:function(){ return P() ? "All four steps verified. RO marks the <b>release complete</b>, and every step has its evidence attached. No one had to watch it."
+                               : "RO <b>stops the release</b> and runs the rollback for the failed step. Step 4 never runs, and the evidence shows exactly what failed and why."; },
+      run:function(){
+        if(P()){
+          at(300,function(){ node("nRO","ok","Release complete"); foot("ok","4 of 4 steps verified"); node("nEv","ok","4 of 4 steps · attached to release"); });
+        } else {
+          at(200,function(){ row(3,"skip","Not run"); foot("bad","Stopped at step 3 · rolling back"); travel("eToExec",C.red,600); });
+          at(850,function(){ node("nExec","bad","Rollback"); travel("eX"+FAILK,C.red,900); });
+          at(1800,function(){ node("t"+FAILK,"bad","Rolled back"); row(FAILK,"bad","↺ Rolled back"); });
+          at(2500,function(){ node("nRO","bad","Release stopped"); foot("bad","Stopped at step 3 · rolled back"); node("nExec","done","Spinnaker / Jules"); });
+        }
+      },
+      end:function(){} }
+  ];
+
+  var i=0, auto=false;
+  function go(n){
+    clearT(); i=n; var s=STEPS[i];
+    reset(); for(var j=0;j<i;j++) STEPS[j].end();
+    $("kick").textContent="Step "+(i+1)+" · "+s.t; $("narr").innerHTML=s.x();
+    $("panel").className="panel"+(i>=6?(P()?" good":" bad"):"");
+    $("cnt").textContent="Step "+(i+1)+" of "+STEPS.length;
+    $("back").disabled=(i===0); $("next").disabled=(i===STEPS.length-1);
+    requestAnimationFrame(function(){ s.run(); });
+    if(auto){ if(i<STEPS.length-1) at(s.dur+900,function(){ go(i+1); }); else at(s.dur,stopAuto); }
+  }
+  function stopAuto(){ auto=false; $("all").textContent="Play all"; }
+  function scn(v){ SCN=v; $("scPass").classList.toggle("sel",v==="pass"); $("scFail").classList.toggle("sel",v==="fail"); go(auto?0:i); }
+  $("scPass").onclick=function(){ scn("pass"); };
+  $("scFail").onclick=function(){ scn("fail"); };
+  $("next").onclick=function(){ stopAuto(); if(i<STEPS.length-1) go(i+1); };
+  $("back").onclick=function(){ stopAuto(); if(i>0) go(i-1); };
+  $("replay").onclick=function(){ stopAuto(); go(i); };
+  $("all").onclick=function(){ if(auto){ stopAuto(); clearT(); return; } auto=true; $("all").textContent="Stop"; go(0); };
+  addEventListener("keydown",function(e){ if(e.key==="ArrowRight")$("next").click(); if(e.key==="ArrowLeft")$("back").click(); });
+  go(0);
+})();
+</script>
+</body>
+</html>

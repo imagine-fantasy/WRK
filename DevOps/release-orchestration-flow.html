@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Release Orchestration Flow</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b111c;color:#e6edf6;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:1320px;margin:0 auto;padding:22px 16px 30px}
+  h1{margin:0 0 4px;font-size:22px;font-weight:700}
+  .subt{margin:0 0 14px;color:#93a3b8;font-size:13.5px}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+  .seg{display:inline-flex;border:1px solid #2c3b55;border-radius:10px;overflow:hidden}
+  .seg button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border:0;background:#121b2b;color:#8ea0b8;cursor:pointer}
+  .seg button.sel.p{background:#0f3a2c;color:#6ee7b7}
+  .seg button.sel.f{background:#3d1717;color:#fca5a5}
+  .outer{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 0,#15213a 0,#0d1522 70%);border:1px solid #1f2b3e;border-radius:14px}
+  .stage{position:absolute;left:0;top:0;width:1280px;height:600px;transform-origin:0 0}
+  svg#wires{position:absolute;left:0;top:0;width:1280px;height:600px;overflow:visible}
+  .base{fill:none;stroke:#2a3850;stroke-width:2;stroke-dasharray:5 6}
+  .lit{fill:none;stroke-width:3.2;stroke-linecap:round}
+  .elab{fill:#6f819b;font:700 11px -apple-system,Segoe UI,Arial,sans-serif;letter-spacing:.05em;text-transform:uppercase}
+
+  .acct{position:absolute;left:440px;top:310px;width:818px;height:270px;border:1.6px dashed #6b5a2e;border-radius:16px;background:rgba(201,150,40,.035)}
+  .acct .lab{position:absolute;left:16px;bottom:10px;font-weight:800;font-size:11px;letter-spacing:.12em;color:#c9a24a;text-transform:uppercase}
+
+  .node{position:absolute;border:1.6px solid #2c3b55;border-radius:12px;background:#152034;display:flex;flex-direction:column;justify-content:center;padding:0 14px;
+        transition:border-color .45s,box-shadow .45s,background .45s}
+  .node .t{font-weight:700;font-size:14.5px;white-space:nowrap}
+  .node .s{font-size:12px;color:#7f91aa;margin-top:3px;white-space:nowrap;transition:color .35s}
+  .node.on{border-color:#4f9dff;box-shadow:0 0 0 1px #4f9dff,0 0 24px rgba(79,157,255,.45)} .node.on .s{color:#9cc6ff}
+  .node.val{border-color:#a78bfa;box-shadow:0 0 0 1px #a78bfa,0 0 24px rgba(167,139,250,.45)} .node.val .s{color:#c4b5fd}
+  .node.ok{border-color:#34d399;box-shadow:0 0 0 1px #34d399,0 0 24px rgba(52,211,153,.4)} .node.ok .s{color:#6ee7b7}
+  .node.bad{border-color:#f87171;box-shadow:0 0 0 1px #f87171,0 0 24px rgba(248,113,113,.45)} .node.bad .s{color:#fca5a5}
+  .node.done{border-color:#3d5a85} .node.done .s{color:#9fb3cf}
+
+  .node.gate{width:80px;height:80px;padding:0;transform:rotate(45deg);border-radius:10px;align-items:center}
+  .gate .gi{transform:rotate(-45deg);text-align:center}
+  .gate .t{font-size:11px;color:#8ea0b8;letter-spacing:.06em;text-transform:uppercase}
+  .gate .s{font-size:14px;font-weight:800;color:#e6edf6;margin-top:1px}
+
+  .panel{margin-top:12px;background:#121b2b;border:1px solid #1f2b3e;border-left:5px solid #4f9dff;border-radius:10px;padding:12px 16px;min-height:74px;transition:border-color .4s}
+  .panel.bad{border-left-color:#f87171}.panel.good{border-left-color:#34d399}
+  #kick{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#7f91aa;margin-bottom:4px}
+  #narr{font-size:15.5px}
+  .ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+  .ctrl button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border-radius:8px;border:1px solid #2c3b55;background:#121b2b;color:#e6edf6;cursor:pointer}
+  .ctrl button:disabled{opacity:.35;cursor:default}
+  .ctrl button.pri{background:#2f6db5;border-color:#2f6db5}
+  #cnt{margin-left:auto;font-size:12.5px;color:#7f91aa}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>One-click release orchestration</h1>
+  <p class="subt">Release Orchestrator → Spinnaker → deploy pipeline → validation Lambda → pass or rollback.</p>
+
+  <div class="bar">
+    <div class="seg">
+      <button id="scPass" class="p sel">Validation passes</button>
+      <button id="scFail" class="f">Validation fails</button>
+    </div>
+  </div>
+
+  <div class="outer" id="outer">
+    <div class="stage" id="stage">
+      <div class="acct"><div class="lab">Application AWS account</div></div>
+      <svg id="wires" viewBox="0 0 1280 600">
+        <defs>
+          <filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1280" height="600">
+            <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="edges"></g>
+        <g id="pulses"></g>
+      </svg>
+
+      <div class="node" id="nEng"  style="left:30px;top:80px;width:150px;height:70px"  data-sub="One click"><div class="t">Release engineer</div><div class="s"></div></div>
+      <div class="node" id="nRO"   style="left:230px;top:80px;width:170px;height:70px" data-sub="Ready"><div class="t">Release Orchestrator</div><div class="s"></div></div>
+      <div class="node" id="nSpin" style="left:450px;top:80px;width:170px;height:70px" data-sub="Waiting"><div class="t">Spinnaker</div><div class="s"></div></div>
+      <div class="node" id="nPipe" style="left:670px;top:80px;width:180px;height:70px" data-sub="Waiting"><div class="t">Deploy pipeline</div><div class="s"></div></div>
+      <div class="node gate" id="nGate" style="left:920px;top:75px" data-sub="?" data-gate="1"><div class="gi"><div class="t">Result</div><div class="s"></div></div></div>
+      <div class="node" id="nPass" style="left:1080px;top:30px;width:170px;height:64px" data-sub="—"><div class="t">Release complete</div><div class="s"></div></div>
+      <div class="node" id="nRb"   style="left:1080px;top:136px;width:170px;height:64px" data-sub="Not triggered"><div class="t">Rollback pipeline</div><div class="s"></div></div>
+      <div class="node" id="nApp"  style="left:480px;top:370px;width:250px;height:80px" data-sub="Previous version live"><div class="t">Application (ECS)</div><div class="s"></div></div>
+      <div class="node" id="nLam"  style="left:860px;top:370px;width:250px;height:80px" data-sub="Idle"><div class="t">Validation Lambda</div><div class="s"></div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel"><div id="kick"></div><div id="narr"></div></div>
+  <div class="ctrl">
+    <button id="back">◀ Back</button>
+    <button id="next" class="pri">Next ▶</button>
+    <button id="replay">↻ Replay step</button>
+    <button id="all">Play all</button>
+    <span id="cnt"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var NS="http://www.w3.org/2000/svg";
+  var stage=$("stage"), outer=$("outer"), SCALE=1, W=1280, H=600;
+  function fit(){ SCALE=outer.clientWidth/W; stage.style.transform="scale("+SCALE+")"; outer.style.height=(H*SCALE)+"px"; }
+  addEventListener("resize",fit); fit();
+
+  var C={blue:"#4f9dff",purple:"#a78bfa",green:"#34d399",red:"#f87171"};
+
+  var EDGES={
+    eClick:  {d:"M180 115 L230 115"},
+    eRO:     {d:"M400 115 L450 115"},
+    eSpin:   {d:"M620 115 L670 115"},
+    eDeploy: {d:"M720 150 C720 265 605 255 605 370", lab:[650,262,"deploys","end"]},
+    eInvoke: {d:"M800 150 C800 265 940 255 940 370", lab:[895,262,"invokes","start"]},
+    eCheck:  {d:"M860 405 L730 405", lab:[795,393,"checks","middle"]},
+    ePipeGate:{d:"M850 115 L903 115"},
+    eResult: {d:"M1060 370 C1060 265 960 255 960 172", lab:[1050,270,"result","start"]},
+    ePass:   {d:"M1017 115 C1050 115 1048 62 1080 62", lab:[1040,72,"pass","end"]},
+    eFail:   {d:"M1017 115 C1050 115 1048 168 1080 168", lab:[1040,164,"fail","end"]},
+    eRb:     {d:"M1250 168 C1278 168 1278 540 1200 540 L680 540 C625 540 605 520 605 450", lab:[905,532,"rollback restores previous version","middle"]},
+    eStatus: {d:"M960 58 L960 32 L315 32 L315 80", lab:[640,24,"status back to RO","middle"]}
+  };
+  (function build(){
+    var g=$("edges");
+    Object.keys(EDGES).forEach(function(id){
+      var e=EDGES[id];
+      var b=document.createElementNS(NS,"path"); b.setAttribute("d",e.d); b.setAttribute("class","base"); b.id=id+"_b"; g.appendChild(b);
+      var l=document.createElementNS(NS,"path"); l.setAttribute("d",e.d); l.setAttribute("class","lit"); l.setAttribute("filter","url(#glow)"); l.id=id+"_l"; g.appendChild(l);
+      if(e.lab){ var t=document.createElementNS(NS,"text"); t.setAttribute("x",e.lab[0]); t.setAttribute("y",e.lab[1]); t.setAttribute("text-anchor",e.lab[3]||"middle");
+        t.setAttribute("class","elab"); t.textContent=e.lab[2]; g.appendChild(t); }
+    });
+  })();
+
+  function L(id){ return $(id+"_b").getTotalLength(); }
+  function lit(id,color,frac){ var l=$(id+"_l"), n=L(id); l.style.stroke=color; l.style.strokeDasharray=n+" "+n; l.style.strokeDashoffset=n*(1-frac); }
+
+  var EPOCH=0, T=[];
+  function at(ms,fn){ T.push(setTimeout(fn,ms)); }
+  function clearT(){ EPOCH++; T.forEach(clearTimeout); T=[]; $("pulses").innerHTML=""; }
+
+  function travel(id,color,ms,opt){
+    opt=opt||{}; var my=EPOCH, p=$(id+"_b"), n=p.getTotalLength();
+    var c=document.createElementNS(NS,"circle"); c.setAttribute("r",opt.r||7); c.setAttribute("fill",color); c.setAttribute("filter","url(#glow)");
+    $("pulses").appendChild(c); var t0=null;
+    function f(now){
+      if(my!==EPOCH){ c.remove(); return; }
+      if(t0===null) t0=now;
+      var t=Math.min(1,(now-t0)/ms), e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+      var pt=p.getPointAtLength(opt.rev?n*(1-e):n*e); c.setAttribute("cx",pt.x); c.setAttribute("cy",pt.y);
+      if(!opt.noLit) lit(id,color,e);
+      if(t<1) requestAnimationFrame(f); else c.remove();
+    }
+    requestAnimationFrame(f);
+  }
+
+  function node(id,cls,sub){ var n=$(id); n.className="node"+(n.dataset.gate?" gate":"")+(cls?" "+cls:""); if(sub!=null) n.querySelector(".s").textContent=sub; }
+
+  function reset(){
+    ["nEng","nRO","nSpin","nPipe","nGate","nPass","nRb","nApp","nLam"].forEach(function(id){ node(id,"",$(id).dataset.sub); });
+    Object.keys(EDGES).forEach(function(id){ lit(id,C.blue,0); });
+  }
+
+  var SCN="pass";
+  function P(){ return SCN==="pass"; }
+
+  var STEPS=[
+    { t:"One click", dur:2600,
+      x:function(){ return "The release engineer clicks <b>Run</b> in Release Orchestrator. That one click is the only manual step."; },
+      run:function(){
+        at(150,function(){ node("nEng","on","Clicked Run"); });
+        at(500,function(){ travel("eClick",C.blue,900); });
+        at(1400,function(){ node("nEng","done","Clicked"); node("nRO","on","Running"); });
+      },
+      end:function(){ node("nEng","done","Clicked"); lit("eClick",C.blue,1); node("nRO","on","Running"); } },
+
+    { t:"RO starts Spinnaker", dur:2400,
+      x:function(){ return "Release Orchestrator starts the Spinnaker pipeline, then keeps tracking the run."; },
+      run:function(){
+        at(200,function(){ travel("eRO",C.blue,900); });
+        at(1100,function(){ node("nRO","done","Tracking the run"); node("nSpin","on","Running"); });
+      },
+      end:function(){ lit("eRO",C.blue,1); node("nRO","done","Tracking the run"); node("nSpin","on","Running"); } },
+
+    { t:"Spinnaker runs the pipeline", dur:2400,
+      x:function(){ return "Spinnaker kicks off the deploy pipeline for this release."; },
+      run:function(){
+        at(200,function(){ travel("eSpin",C.blue,900); });
+        at(1100,function(){ node("nSpin","done","Pipeline started"); node("nPipe","on","Stage: deploy"); });
+      },
+      end:function(){ lit("eSpin",C.blue,1); node("nSpin","done","Pipeline started"); node("nPipe","on","Stage: deploy"); } },
+
+    { t:"Deploy the new version", dur:3400,
+      x:function(){ return "The pipeline deploys the new version to the application in its AWS account."; },
+      run:function(){
+        at(200,function(){ travel("eDeploy",C.blue,1300); });
+        at(1500,function(){ node("nApp","on","Deploying new version"); });
+        at(2600,function(){ node("nApp","on","New version running"); });
+      },
+      end:function(){ lit("eDeploy",C.blue,1); node("nApp","on","New version running"); } },
+
+    { t:"Invoke the validation Lambda", dur:2900,
+      x:function(){ return "Next stage: the pipeline invokes the validation Lambda, which sits in the same AWS account as the application."; },
+      run:function(){
+        at(150,function(){ node("nPipe","on","Stage: validate"); node("nApp","done",null); });
+        at(400,function(){ travel("eInvoke",C.purple,1300); });
+        at(1700,function(){ node("nLam","val","Validating"); });
+      },
+      end:function(){ node("nPipe","on","Stage: validate"); node("nApp","done","New version running"); lit("eInvoke",C.purple,1); node("nLam","val","Validating"); } },
+
+    { t:"Lambda checks the deployment", dur:5000,
+      x:function(){ return "The Lambda checks the new deployment directly. No one needs production access to validate it."; },
+      run:function(){
+        for(var k=0;k<3;k++)(function(k){
+          var t=200+k*1500;
+          at(t,function(){ travel("eCheck",C.purple,650,{noLit:k>0}); });
+          at(t+680,function(){ node("nApp","val",null); travel("eCheck",C.purple,650,{rev:true,noLit:true,r:5}); });
+          at(t+1350,function(){ node("nApp","done",null); });
+        })(k);
+        at(4600,function(){ node("nLam","val","Checks complete"); });
+      },
+      end:function(){ lit("eCheck",C.purple,1); node("nLam","val","Checks complete"); node("nApp","done","New version running"); } },
+
+    { t:"Result goes back to the pipeline", dur:3400,
+      x:function(){ return P() ? "The Lambda returns <b>PASS</b> to the pipeline. That result decides what happens next."
+                               : "The Lambda returns <b>FAIL</b> to the pipeline. That result decides what happens next."; },
+      run:function(){
+        var c=P()?C.green:C.red;
+        at(150,function(){ node("nPipe","on","Stage: check result"); travel("ePipeGate",C.blue,600); });
+        at(800,function(){ node("nLam",P()?"ok":"bad",P()?"Result: PASS":"Result: FAIL"); });
+        at(1000,function(){ travel("eResult",c,1300); });
+        at(2300,function(){ node("nGate",P()?"ok":"bad",P()?"PASS":"FAIL"); });
+      },
+      end:function(){ var c=P()?C.green:C.red;
+        node("nPipe","on","Stage: check result"); lit("ePipeGate",C.blue,1);
+        node("nLam",P()?"ok":"bad",P()?"Result: PASS":"Result: FAIL"); lit("eResult",c,1); node("nGate",P()?"ok":"bad",P()?"PASS":"FAIL"); } },
+
+    { t:"Outcome", dur:3900,
+      x:function(){ return P() ? "On PASS the pipeline completes. The new version stays live and the rollback pipeline never runs."
+                               : "On FAIL the pipeline stops and the <b>rollback pipeline</b> runs, putting the application back on the previous version."; },
+      run:function(){
+        if(P()){
+          at(200,function(){ travel("ePass",C.green,900); });
+          at(1100,function(){ node("nPass","ok","Pipeline succeeded"); node("nPipe","ok","Succeeded"); node("nApp","ok","New version live"); });
+        } else {
+          at(200,function(){ travel("eFail",C.red,900); });
+          at(1100,function(){ node("nRb","bad","Running"); node("nPipe","bad","Stopped"); });
+          at(1400,function(){ travel("eRb",C.red,1500); });
+          at(2900,function(){ node("nApp","bad","Back on previous version"); node("nRb","bad","Done"); });
+        }
+      },
+      end:function(){
+        if(P()){ lit("ePass",C.green,1); node("nPass","ok","Pipeline succeeded"); node("nPipe","ok","Succeeded"); node("nApp","ok","New version live"); }
+        else { lit("eFail",C.red,1); lit("eRb",C.red,1); node("nRb","bad","Done"); node("nPipe","bad","Stopped"); node("nApp","bad","Back on previous version"); }
+      } },
+
+    { t:"Status back to Release Orchestrator", dur:2800,
+      x:function(){ return P() ? "Release Orchestrator gets the final status: <b>release succeeded</b>. Switch to <b>Validation fails</b> above to see the other path."
+                               : "Release Orchestrator gets the final status: <b>release rolled back</b>. Nobody had to watch the deployment or make the call."; },
+      run:function(){
+        at(200,function(){ travel("eStatus",P()?C.green:C.red,1600); });
+        at(1800,function(){ node("nRO",P()?"ok":"bad",P()?"Release succeeded":"Release rolled back"); });
+      },
+      end:function(){ lit("eStatus",P()?C.green:C.red,1); node("nRO",P()?"ok":"bad",P()?"Release succeeded":"Release rolled back"); } }
+  ];
+
+  var i=0, auto=false;
+  function go(n){
+    clearT(); i=n; var s=STEPS[i];
+    reset(); for(var j=0;j<i;j++) STEPS[j].end();
+    $("kick").textContent="Step "+(i+1)+" · "+s.t; $("narr").innerHTML=s.x();
+    $("panel").className="panel"+(i>=6?(P()?" good":" bad"):"");
+    $("cnt").textContent="Step "+(i+1)+" of "+STEPS.length;
+    $("back").disabled=(i===0); $("next").disabled=(i===STEPS.length-1);
+    requestAnimationFrame(function(){ s.run(); });
+    if(auto){ if(i<STEPS.length-1) at(s.dur+900,function(){ go(i+1); }); else at(s.dur,stopAuto); }
+  }
+  function stopAuto(){ auto=false; $("all").textContent="Play all"; }
+  function scn(v){ SCN=v; $("scPass").classList.toggle("sel",v==="pass"); $("scFail").classList.toggle("sel",v==="fail"); go(auto?0:i); }
+  $("scPass").onclick=function(){ scn("pass"); };
+  $("scFail").onclick=function(){ scn("fail"); };
+  $("next").onclick=function(){ stopAuto(); if(i<STEPS.length-1) go(i+1); };
+  $("back").onclick=function(){ stopAuto(); if(i>0) go(i-1); };
+  $("replay").onclick=function(){ stopAuto(); go(i); };
+  $("all").onclick=function(){ if(auto){ stopAuto(); clearT(); return; } auto=true; $("all").textContent="Stop"; go(0); };
+  addEventListener("keydown",function(e){ if(e.key==="ArrowRight")$("next").click(); if(e.key==="ArrowLeft")$("back").click(); });
+  go(0);
+})();
+</script>
+</body>
+</html>

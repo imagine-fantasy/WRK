@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One-Click Release Flow</title>
+<style>
+  :root{--blue:#2f6db5;--purple:#6b46c1;--green:#23874a;--red:#b8342a;--grey:#7b8794;--ink:#1f2a37;--line:#c9d3dd}
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f6f9;color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:1220px;margin:0 auto;padding:22px 16px 30px}
+  h1{margin:0 0 4px;font-size:22px}
+  .subt{margin:0 0 12px;color:#5b6775;font-size:13.5px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 10px;font-size:12.5px;color:#3d4a58}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:14px;height:14px;border-radius:4px;display:inline-block;border:2px solid}
+  .outer{position:relative;overflow:hidden;background:#fff;border:1px solid #d7dee6;border-radius:12px}
+  .stage{position:absolute;left:0;top:0;width:1180px;height:700px;transform-origin:0 0}
+
+  .sec{position:absolute;border:1.8px solid #9aa8b6;border-radius:12px;background:#fbfcfd;transition:opacity .7s,filter .5s,box-shadow .3s}
+  .sec .hd{position:absolute;left:14px;top:10px;font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2b3846}
+  .sec .sd{position:absolute;left:14px;top:27px;font-size:11.5px;color:#6a7685}
+  .dim{opacity:.26;filter:saturate(.25)}
+  .gone{opacity:0 !important}
+  .off{opacity:0 !important;pointer-events:none}
+
+  .acct{position:absolute;left:20px;top:300px;width:1140px;height:325px;border:2px dashed #c58a1b;border-radius:14px;background:#fffaf0;transition:opacity .7s}
+  .acct .lab{position:absolute;left:16px;top:6px;font-weight:800;font-size:11px;letter-spacing:.1em;color:#9a6a10}
+
+  .btn{position:absolute;left:30px;top:120px;width:120px;height:38px;border-radius:9px;background:var(--blue);color:#fff;font-weight:800;font-size:13px;
+       display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 #1d4a80;transition:transform .15s,box-shadow .15s}
+  .btn.press{transform:translateY(3px);box-shadow:0 0 0 #1d4a80}
+  .person{position:absolute;left:62px;top:50px;width:56px;height:56px}
+
+  .mv{position:absolute;left:0;top:0;width:0;height:0;z-index:8;transition:transform 1.5s cubic-bezier(.45,.05,.25,1),opacity .45s}
+  .chip{position:absolute;left:0;top:0;width:236px;height:46px;transform:translate(-50%,-50%);border:2px solid;border-radius:10px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 14px rgba(20,40,70,.16);
+    transition:width .35s,height .35s,border-radius .35s,background .4s,border-color .4s,color .4s}
+  .chip .num{font:700 14px ui-monospace,Menlo,Consolas,monospace;white-space:nowrap;transition:opacity .2s,filter .22s}
+  .chip .lbl{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;transition:opacity .2s,filter .22s}
+  .chip.morph .num,.chip.morph .lbl{opacity:0;filter:blur(5px)}
+  .chip.ball{width:26px;height:26px;border-radius:50%;border-width:3px}
+  .chip.ball .num,.chip.ball .lbl{opacity:0}
+  .t-blue{background:#e7f0fb;border-color:var(--blue);color:#1f4f87}.t-blue.ball{background:var(--blue)}
+  .t-purple{background:#efe9fb;border-color:var(--purple);color:#4c2f94}.t-purple.ball{background:var(--purple)}
+  .t-green{background:#e5f5ea;border-color:var(--green);color:#17663a}.t-green.ball{background:var(--green)}
+  .t-red{background:#fbe9e7;border-color:var(--red);color:#8f241c}.t-red.ball{background:var(--red)}
+
+  table.t{position:absolute;left:14px;top:48px;border-collapse:separate;border-spacing:0 4px;table-layout:fixed}
+  table.t th{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7a8694;text-align:left;padding:0 9px}
+  table.t td{font:600 11.5px ui-monospace,Menlo,Consolas,monospace;background:#fff;color:#2b3846;padding:6px 9px;border-top:1px solid #e3e8ee;border-bottom:1px solid #e3e8ee;
+    white-space:nowrap;overflow:hidden;text-overflow:clip;transition:background .45s,color .45s,opacity .5s}
+  table.t td:first-child{border-left:1px solid #e3e8ee;border-radius:7px 0 0 7px}
+  table.t td:last-child{border-right:1px solid #e3e8ee;border-radius:0 7px 7px 0}
+  table.t td.c-blue{background:#dbe9f7;color:#2f5d94}
+  table.t td.c-purple{background:#e9e1fa;color:#553399}
+  table.t td.c-green{background:#d9f1e1;color:#17663a}
+  table.t td.c-red{background:#f8dcd8;color:#8f241c}
+  table.t td.c-grey{background:#eceff3;color:#5e6a78}
+  table.t td.c-wait{background:#fff;color:#9aa5b1}
+  tr.hid td{opacity:0}
+  tr.none{display:none}
+  tr.pulse td{animation:rowPulse 1.8s ease}
+  @keyframes rowPulse{25%{box-shadow:inset 0 0 0 3px #f2b705}}
+  .flash{animation:hflash .9s ease}
+  @keyframes hflash{20%{box-shadow:0 0 0 8px rgba(184,52,42,.55)}}
+  .badge{position:absolute;right:14px;top:10px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:20px;
+    background:#eceff3;color:#6a7685;transition:background .4s,color .4s}
+  .badge.run{background:#e9e1fa;color:#553399}
+  .xm{position:absolute;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:var(--red);color:#fff;font:900 17px Arial;
+    display:flex;align-items:center;justify-content:center;z-index:9;box-shadow:0 0 0 4px #fff;transition:opacity .3s}
+
+  .banner{position:absolute;left:20px;top:640px;width:1140px;height:50px;border-radius:10px;background:#1f2a37;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;
+    font-size:13.5px;font-weight:700;transition:opacity .8s}
+  .banner .ar{color:#9fb3c8}
+  .banner .ok{background:var(--green);padding:4px 10px;border-radius:6px}
+  .banner .ko{background:var(--red);padding:4px 10px;border-radius:6px}
+
+  .nt,.nt *{transition:none !important;animation:none !important}
+
+  .panel{margin-top:12px;background:#fff;border:1px solid #d7dee6;border-left:5px solid var(--blue);border-radius:10px;padding:12px 16px;min-height:76px}
+  .panel.bad{border-left-color:var(--red);background:#fff7f6}
+  #kick{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#6a7685;margin-bottom:4px}
+  #narr{font-size:15.5px}
+  .ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+  .ctrl button{font:700 13px inherit;font-family:inherit;padding:8px 14px;border-radius:8px;border:1px solid #b9c4d0;background:#fff;color:var(--ink);cursor:pointer}
+  .ctrl button:disabled{opacity:.4;cursor:default}
+  .ctrl button.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+  #cnt{margin-left:auto;font-size:12.5px;color:#6a7685}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>One-click release: Release Orchestrator → Spinnaker → Lambda validation</h1>
+  <p class="subt">How a release runs end to end, and how the validation Lambda's answer decides pass or rollback. All ids, versions and numbers are made up.</p>
+  <div class="legend">
+    <span><i style="background:#dbe9f7;border-color:#2f6db5"></i>Release in progress</span>
+    <span><i style="background:#e9e1fa;border-color:#6b46c1"></i>Validation</span>
+    <span><i style="background:#d9f1e1;border-color:#23874a"></i>Passed / live</span>
+    <span><i style="background:#f8dcd8;border-color:#b8342a"></i>Failed / rolled back</span>
+    <span><i style="background:#eceff3;border-color:#7b8794"></i>Previous version</span>
+  </div>
+
+  <div class="outer" id="outer">
+    <div class="stage" id="stage">
+
+      <!-- Engineer -->
+      <div class="sec" id="secEng" style="left:20px;top:30px;width:180px;height:200px">
+        <div class="hd">Release engineer</div>
+        <svg class="person" viewBox="0 0 56 56" style="left:62px;top:44px"><circle cx="28" cy="18" r="11" fill="#9aa8b6"/><path d="M8 54c0-12 9-20 20-20s20 8 20 20z" fill="#9aa8b6"/></svg>
+        <div class="btn" id="runBtn" style="left:30px;top:130px">▶ Run release</div>
+      </div>
+
+      <!-- Release Orchestrator -->
+      <div class="sec" id="secRO" style="left:220px;top:20px;width:400px;height:250px">
+        <div class="hd">Release Orchestrator (RO)</div>
+        <div class="sd">Starts the release, tracks it end to end</div>
+        <table class="t" style="width:372px">
+          <colgroup><col style="width:128px"><col style="width:140px"><col style="width:104px"></colgroup>
+          <tr><th>Release</th><th>Artifact</th><th>Status</th></tr>
+          <tr id="ro1"><td>REL-20261004-01</td><td>payments-api:2.4.0</td><td>Ready</td></tr>
+          <tr id="ro2" class="none"><td>REL-20261011-01</td><td>payments-api:2.5.0</td><td>Running</td></tr>
+        </table>
+      </div>
+
+      <!-- Spinnaker -->
+      <div class="sec" id="secSpin" style="left:640px;top:20px;width:520px;height:262px">
+        <div class="hd">Spinnaker pipeline</div>
+        <div class="sd">Runs the stages; the Lambda's result picks the path</div>
+        <table class="t" style="width:492px">
+          <colgroup><col style="width:262px"><col style="width:230px"></colgroup>
+          <tr><th>Stage</th><th>Status</th></tr>
+          <tr id="sp1" class="hid"><td>1 · Deploy to ECS</td><td>Waiting</td></tr>
+          <tr id="sp2" class="hid"><td>2 · Call validation Lambda</td><td>Waiting</td></tr>
+          <tr id="sp3" class="hid"><td>3 · Check Lambda result</td><td>Waiting</td></tr>
+          <tr id="spRb" class="hid"><td>On FAIL · rollback pipeline</td><td>Not triggered</td></tr>
+        </table>
+      </div>
+
+      <!-- AWS account -->
+      <div class="acct" id="acct"><div class="lab">TEAM AWS ACCOUNT · PRODUCTION</div></div>
+
+      <div class="sec" id="secEcs" style="left:40px;top:330px;width:520px;height:282px">
+        <div class="hd">ECS service · payments-api</div>
+        <div class="sd">Where the new version runs</div>
+        <table class="t" style="width:492px">
+          <colgroup><col style="width:172px"><col style="width:80px"><col style="width:240px"></colgroup>
+          <tr><th>Version</th><th>Tasks</th><th>Status</th></tr>
+          <tr id="e231"><td>payments-api:2.3.1</td><td>4</td><td>Live</td></tr>
+          <tr id="e240" class="none"><td>payments-api:2.4.0</td><td>4</td><td>Starting</td></tr>
+          <tr id="e250" class="none"><td>payments-api:2.5.0</td><td>4</td><td>Running</td></tr>
+        </table>
+      </div>
+
+      <div class="sec" id="secLam" style="left:600px;top:330px;width:540px;height:282px">
+        <div class="hd">Validation Lambda</div>
+        <div class="sd">Checks the deployment, returns PASS or FAIL</div>
+        <div class="badge" id="lamBadge">Idle</div>
+        <table class="t" style="width:512px">
+          <colgroup><col style="width:150px"><col style="width:262px"><col style="width:100px"></colgroup>
+          <tr><th>Check</th><th>What it saw</th><th>Result</th></tr>
+          <tr id="k0" class="hid"><td>Target health</td><td>4 of 4 tasks healthy</td><td>PASS</td></tr>
+          <tr id="k1" class="hid"><td>DB migration</td><td>V42 applied</td><td>PASS</td></tr>
+          <tr id="k2" class="hid"><td>Health endpoint</td><td>GET /health → 200</td><td>PASS</td></tr>
+          <tr id="k3" class="hid"><td>Error rate</td><td>0.2% (limit 1%)</td><td>PASS</td></tr>
+        </table>
+      </div>
+
+      <div class="banner" id="banner">
+        <span>One click</span><span class="ar">→</span><span>RO</span><span class="ar">→</span><span>Spinnaker</span><span class="ar">→</span>
+        <span>Deploy</span><span class="ar">→</span><span>Lambda validates</span><span class="ar">→</span>
+        <span class="ok">PASS: release complete</span><span class="ko">FAIL: rollback pipeline → previous version live</span>
+      </div>
+
+      <div class="xm off" id="xm">✕</div>
+
+      <div class="mv off" id="cMain"><div class="chip t-blue"><div class="num"></div><div class="lbl"></div></div></div>
+      <div class="mv off" id="cVal"><div class="chip t-purple"><div class="num"></div><div class="lbl"></div></div></div>
+      <div class="mv off" id="cProbe"><div class="chip t-purple ball"><div class="num"></div><div class="lbl"></div></div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel"><div id="kick"></div><div id="narr"></div></div>
+  <div class="ctrl">
+    <button id="back">◀ Back</button>
+    <button id="next" class="pri">Next ▶</button>
+    <button id="replay">↻ Replay scene</button>
+    <button id="all">Play all</button>
+    <span id="cnt"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var stage=$("stage"), outer=$("outer"), SCALE=1, W=1180, H=700;
+  function fit(){ SCALE=outer.clientWidth/W; stage.style.transform="scale("+SCALE+")"; outer.style.height=(H*SCALE)+"px"; }
+  addEventListener("resize",fit); fit();
+
+  var MOVE=1500, SHRINK=380;
+  var T=[]; function at(ms,fn){ T.push(setTimeout(fn,ms)); } function clearT(){ T.forEach(clearTimeout); T=[]; }
+  function inner(id){ return $(id).querySelector(".chip"); }
+  function pos(id,c,ms){ var m=$(id); m.style.transitionDuration=(ms==null?MOVE:ms)+"ms, 450ms";
+    m.style.transform="translate("+c[0]+"px,"+c[1]+"px)"; }
+  function vis(id,on){ $(id).classList.toggle("off",!on); }
+  function chip(id,theme,num,lbl){ var e=inner(id), b=e.classList.contains("ball");
+    e.className="chip t-"+theme+(b?" ball":""); e.querySelector(".num").textContent=num; e.querySelector(".lbl").textContent=lbl; }
+  function morph(id,theme,num,lbl){ var e=inner(id); e.classList.add("morph");
+    setTimeout(function(){ chip(id,theme,num,lbl); e.classList.remove("morph"); },260); }
+  function ball(id,on){ inner(id).classList.toggle("ball",on); }
+  function fly(id,c,ms){ ms=ms||MOVE; ball(id,true);
+    at(SHRINK,function(){ pos(id,c,ms); }); at(SHRINK+ms,function(){ ball(id,false); }); }
+  function ctr(el){ var r=el.getBoundingClientRect(), s=stage.getBoundingClientRect();
+    return [(r.left-s.left)/SCALE+r.width/SCALE/2, (r.top-s.top)/SCALE+r.height/SCALE/2]; }
+  function cell(rowId,n){ return $(rowId).querySelectorAll("td")[n]; }
+  function hid(id,on){ $(id).classList.toggle("hid",on); }
+  function none(id,on){ $(id).classList.toggle("none",on); }
+  function pulse(id){ var r=$(id); r.classList.remove("pulse"); void r.offsetWidth; r.classList.add("pulse"); }
+  function flash(id){ var h=$(id); h.classList.remove("flash"); void h.offsetWidth; h.classList.add("flash"); }
+  function instant(fn){ var all=[stage].concat([].slice.call(stage.querySelectorAll("*")));
+    all.forEach(function(e){e.classList.add("nt")}); fn(); void stage.offsetWidth;
+    all.forEach(function(e){e.classList.remove("nt")}); }
+
+  // colour a row; optionally replace the last cell (status) and a middle cell
+  function paint(rowId,cls,status,mid){
+    var tds=$(rowId).querySelectorAll("td");
+    tds.forEach(function(td){ td.className=cls?("c-"+cls):""; });
+    if(status!=null) tds[tds.length-1].textContent=status;
+    if(mid!=null) tds[1].textContent=mid;
+  }
+  function badge(txt,run){ var b=$("lamBadge"); b.textContent=txt; b.classList.toggle("run",!!run); }
+
+  var SLOT={ eng:[125,262], ro:[420,232], spin:[900,250], ecs:[300,580], lam:[870,580] };
+
+  var SECS=["secEng","secRO","secSpin","secEcs","secLam"];
+  var SHOW_AT={ secSpin:1, acct:2, secEcs:2, secLam:3, banner:8 };
+  function reveal(k){ Object.keys(SHOW_AT).forEach(function(id){ if(SHOW_AT[id]===k) $(id).classList.remove("gone"); }); }
+  function spot(list){ SECS.forEach(function(s){ $(s).classList.toggle("dim", list!=="all" && list.indexOf(s)<0); }); }
+
+  var CHECKS=[
+    ["Target health","4 of 4 tasks healthy"],
+    ["DB migration","V42 applied"],
+    ["Health endpoint","GET /health → 200"],
+    ["Error rate","0.2% (limit 1%)"]
+  ];
+
+  function reset(){
+    paint("ro1","grey","Ready"); none("ro2",true); paint("ro2","blue","Running");
+    ["sp1","sp2","sp3"].forEach(function(r){ hid(r,true); paint(r,"wait","Waiting"); });
+    hid("spRb",true); paint("spRb","wait","Not triggered");
+    none("e231",false); paint("e231","grey","Live");
+    none("e240",true); paint("e240","blue","Starting");
+    none("e250",true); paint("e250","blue","Running");
+    for(var n=0;n<4;n++){ hid("k"+n,true); paint("k"+n,"green","PASS",CHECKS[n][1]); }
+    badge("Idle",false);
+    vis("cMain",false); chip("cMain","blue","REL-20261004-01","Release · Run clicked"); ball("cMain",false); pos("cMain",SLOT.eng,0);
+    vis("cVal",false); chip("cVal","purple","payments-api:2.4.0","Validation request"); ball("cVal",false); pos("cVal",SLOT.spin,0);
+    vis("cProbe",false); pos("cProbe",SLOT.lam,0);
+    vis("xm",false);
+    $("runBtn").classList.remove("press");
+  }
+
+  var SC=[
+    { t:"1 · One click", dur:6000, sp:["secEng","secRO"], bad:false,
+      x:"The release engineer presses <b>Run</b> on release REL-20261004-01 in Release Orchestrator. That one click is the only manual step in the whole flow.",
+      run:function(){
+        at(300,function(){ $("runBtn").classList.add("press"); });
+        at(550,function(){ $("runBtn").classList.remove("press"); });
+        at(800,function(){ vis("cMain",true); });
+        at(1700,function(){ fly("cMain",SLOT.ro); });
+        at(3800,function(){ paint("ro1","blue","Running"); pulse("ro1"); });
+      },
+      end:function(){ vis("cMain",true); pos("cMain",SLOT.ro,0); paint("ro1","blue","Running"); } },
+
+    { t:"2 · RO starts Spinnaker", dur:6500, sp:["secRO","secSpin"], bad:false,
+      x:"Release Orchestrator starts the Spinnaker pipeline for this release. From here Spinnaker runs the stages, and RO keeps tracking the run.",
+      run:function(){
+        at(600,function(){ morph("cMain","blue","exec-7f3a9c21","Spinnaker pipeline run"); });
+        at(1500,function(){ fly("cMain",SLOT.spin); });
+        at(3600,function(){ ["sp1","sp2","sp3","spRb"].forEach(function(r){ hid(r,false); pulse(r); }); });
+      },
+      end:function(){ chip("cMain","blue","exec-7f3a9c21","Spinnaker pipeline run"); pos("cMain",SLOT.spin,0);
+        ["sp1","sp2","sp3","spRb"].forEach(function(r){ hid(r,false); }); } },
+
+    { t:"3 · Spinnaker deploys 2.4.0", dur:7500, sp:["secSpin","secEcs"], bad:false,
+      x:"Stage 1 deploys <b>payments-api:2.4.0</b> to ECS in the team's AWS account. The old version 2.3.1 keeps serving while the new tasks start.",
+      run:function(){
+        at(500,function(){ paint("sp1","blue","Running"); pulse("sp1"); });
+        at(1200,function(){ morph("cMain","blue","payments-api:2.4.0","New version to deploy"); });
+        at(2000,function(){ fly("cMain",SLOT.ecs); });
+        at(4100,function(){ none("e240",false); paint("e240","blue","Starting"); pulse("e240"); paint("e231","grey","Still serving"); });
+        at(5700,function(){ paint("e240","blue","New · running"); paint("sp1","blue","Done"); pulse("sp1"); });
+      },
+      end:function(){ chip("cMain","blue","payments-api:2.4.0","New version to deploy"); pos("cMain",SLOT.ecs,0);
+        none("e240",false); paint("e240","blue","New · running"); paint("e231","grey","Still serving"); paint("sp1","blue","Done"); } },
+
+    { t:"4 · Pipeline calls the Lambda", dur:6200, sp:["secSpin","secLam"], bad:false,
+      x:"Stage 2 calls the <b>validation Lambda</b>. It sits in the same AWS account as the service, so it can check the deployment directly. No person needs production access.",
+      pre:function(){ vis("cMain",false); },
+      run:function(){
+        at(400,function(){ paint("sp2","purple","Running"); pulse("sp2"); });
+        at(1000,function(){ vis("cVal",true); });
+        at(1900,function(){ fly("cVal",SLOT.lam); });
+        at(4000,function(){ badge("Running",true); });
+      },
+      end:function(){ vis("cVal",true); pos("cVal",SLOT.lam,0); paint("sp2","purple","Running"); badge("Running",true); } },
+
+    { t:"5 · Lambda checks the deployment", dur:12000, sp:["secLam","secEcs"], bad:false,
+      x:"The Lambda checks the new version: target health, DB migration, the health endpoint and error rate. Each result is recorded, so the evidence is captured automatically.",
+      run:function(){
+        [0,1,2,3].forEach(function(n){
+          var t=600+n*2600;
+          at(t,function(){ pos("cProbe",ctr(cell("k"+n,0)),0); vis("cProbe",true); });
+          at(t+100,function(){ pos("cProbe",ctr(cell("e240",2)),900); });
+          at(t+1100,function(){ pos("cProbe",ctr(cell("k"+n,0)),900); });
+          at(t+2000,function(){ vis("cProbe",false); hid("k"+n,false); pulse("k"+n); });
+        });
+      },
+      end:function(){ for(var n=0;n<4;n++) hid("k"+n,false); vis("cProbe",false); } },
+
+    { t:"6 · PASS goes back to the pipeline", dur:9800, sp:["secLam","secSpin","secRO","secEcs"], bad:false,
+      x:"All four checks pass, so the Lambda returns <b>PASS</b>. The pipeline continues, 2.4.0 becomes live, the rollback pipeline never runs, and RO marks the release succeeded.",
+      run:function(){
+        at(500,function(){ morph("cVal","green","PASS","Lambda result · 4 of 4 checks"); badge("Done",false); });
+        at(1300,function(){ fly("cVal",SLOT.spin); });
+        at(3400,function(){ paint("sp2","purple","Done"); paint("sp3","green","PASS · continue"); pulse("sp3"); });
+        at(4700,function(){ paint("e240","green","Live"); paint("e231","grey","Stopped"); pulse("e240"); });
+        at(5600,function(){ morph("cVal","green","REL-20261004-01","Release succeeded"); });
+        at(6300,function(){ fly("cVal",SLOT.ro); });
+        at(8400,function(){ paint("ro1","green","Succeeded"); pulse("ro1"); });
+      },
+      end:function(){ chip("cVal","green","REL-20261004-01","Release succeeded"); pos("cVal",SLOT.ro,0); badge("Done",false);
+        paint("sp2","purple","Done"); paint("sp3","green","PASS · continue");
+        paint("e240","green","Live"); paint("e231","grey","Stopped"); paint("ro1","green","Succeeded"); } },
+
+    { t:"7 · Next release: a check fails", dur:10800, sp:["secLam","secEcs","secSpin"], bad:true,
+      x:"A week later, release 2.5.0 runs through the same steps. This time the health endpoint returns <b>503</b>, so the Lambda returns <b>FAIL</b> and the pipeline stops.",
+      pre:function(){
+        none("ro2",false); paint("ro2","blue","Running");
+        paint("sp1","blue","Done"); paint("sp2","purple","Running"); paint("sp3","wait","Waiting"); paint("spRb","wait","Not triggered");
+        none("e231",true); paint("e240","grey","Previous · still serving"); none("e250",false); paint("e250","blue","New · running");
+        for(var n=0;n<4;n++){ hid("k"+n,true); paint("k"+n,"green","PASS",CHECKS[n][1]); }
+        paint("k2","red","FAIL","GET /health → 503"); paint("k3","grey","Skipped","Not run");
+        badge("Running",true);
+        chip("cVal","purple","payments-api:2.5.0","Validation request"); pos("cVal",SLOT.lam,0); vis("cVal",true);
+      },
+      run:function(){
+        at(600,function(){ hid("k0",false); pulse("k0"); });
+        at(1400,function(){ hid("k1",false); pulse("k1"); });
+        at(2300,function(){ pos("cProbe",ctr(cell("k2",0)),0); vis("cProbe",true); });
+        at(2400,function(){ pos("cProbe",ctr(cell("e250",2)),700); });
+        at(3150,function(){ var c=ctr(cell("e250",2)); pos("xm",c,0); $("xm").style.transform="translate("+c[0]+"px,"+c[1]+"px)"; vis("xm",true); flash("secEcs"); });
+        at(3250,function(){ pos("cProbe",ctr(cell("k2",0)),600); });
+        at(3900,function(){ vis("cProbe",false); hid("k2",false); pulse("k2"); });
+        at(4700,function(){ hid("k3",false); pulse("k3"); });
+        at(5600,function(){ morph("cVal","red","FAIL","Lambda result · health check"); badge("Done",false); });
+        at(6400,function(){ fly("cVal",SLOT.spin); });
+        at(8500,function(){ paint("sp2","purple","Done"); paint("sp3","red","FAIL · stop release"); pulse("sp3"); flash("secSpin"); });
+      },
+      end:function(){ for(var n=0;n<4;n++) hid("k"+n,false); vis("cProbe",false); badge("Done",false);
+        chip("cVal","red","FAIL","Lambda result · health check"); pos("cVal",SLOT.spin,0);
+        paint("sp2","purple","Done"); paint("sp3","red","FAIL · stop release"); } },
+
+    { t:"8 · Rollback pipeline restores 2.4.0", dur:7800, sp:["secSpin","secEcs","secRO"], bad:true,
+      x:"FAIL triggers the <b>rollback pipeline</b>. It puts 2.4.0 back as live and stops 2.5.0. RO shows the release as rolled back. Nobody had to watch the deployment or make the call.",
+      pre:function(){ var c=ctr(cell("e250",2)); $("xm").style.transform="translate("+c[0]+"px,"+c[1]+"px)"; vis("xm",true); },
+      run:function(){
+        at(500,function(){ paint("spRb","red","Triggered"); pulse("spRb"); });
+        at(1200,function(){ morph("cVal","red","payments-api:2.4.0","Rollback to previous version"); });
+        at(2000,function(){ fly("cVal",SLOT.ecs); });
+        at(4100,function(){ vis("xm",false); paint("e250","red","Failed · stopped"); paint("e240","green","Live again"); pulse("e250"); pulse("e240"); });
+        at(5300,function(){ paint("spRb","red","Done · 2.4.0 restored"); });
+        at(6100,function(){ paint("ro2","red","Rolled back"); pulse("ro2"); });
+      },
+      end:function(){ vis("xm",false); chip("cVal","red","payments-api:2.4.0","Rollback to previous version"); pos("cVal",SLOT.ecs,0);
+        paint("spRb","red","Done · 2.4.0 restored"); paint("e250","red","Failed · stopped"); paint("e240","green","Live again"); paint("ro2","red","Rolled back"); } },
+
+    { t:"9 · The whole picture", dur:7000, sp:"all", bad:false,
+      x:"One click starts it. RO hands off to Spinnaker, Spinnaker deploys, and the Lambda validates. The Lambda's answer decides the outcome: <b>PASS</b> completes the release, <b>FAIL</b> rolls it back automatically.",
+      pre:function(){ vis("cVal",false); },
+      run:function(){}, end:function(){} }
+  ];
+
+  function state(k){
+    Object.keys(SHOW_AT).forEach(function(id){ $(id).classList.toggle("gone", SHOW_AT[id]>=k && SHOW_AT[id]!==0); });
+    spot("all");
+    reset();
+    for(var j=0;j<k;j++){ if(SC[j].pre) SC[j].pre(); SC[j].end(); }
+    if(SC[k].pre) SC[k].pre();
+  }
+
+  var i=0, auto=false;
+  function go(n){
+    clearT(); i=n; var s=SC[i];
+    instant(function(){ state(i); }); spot(s.sp);
+    $("kick").textContent="Scene "+s.t; $("narr").innerHTML=s.x;
+    $("panel").className="panel"+(s.bad?" bad":"");
+    $("cnt").textContent="Scene "+(i+1)+" of "+SC.length;
+    $("back").disabled=(i===0); $("next").disabled=(i===SC.length-1);
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ reveal(i); s.run(); }); });
+    if(auto){ if(i<SC.length-1) at(s.dur+1500,function(){ go(i+1); }); else at(s.dur,stopAuto); }
+  }
+  function stopAuto(){ auto=false; $("all").textContent="Play all"; }
+  $("next").onclick=function(){ stopAuto(); if(i<SC.length-1) go(i+1); };
+  $("back").onclick=function(){ stopAuto(); if(i>0) go(i-1); };
+  $("replay").onclick=function(){ stopAuto(); go(i); };
+  $("all").onclick=function(){ if(auto){ stopAuto(); clearT(); return; } auto=true; $("all").textContent="Stop"; go(0); };
+  addEventListener("keydown",function(e){ if(e.key==="ArrowRight")$("next").click(); if(e.key==="ArrowLeft")$("back").click(); });
+  go(0);
+})();
+</script>
+</body>
+</html>
